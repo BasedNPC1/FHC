@@ -25,14 +25,3 @@ Servo motors have three wires: power, ground, and signal. The power wire is typi
 
 (Images developed using Fritzing. For more circuit examples, see the [Fritzing project page](http://fritzing.org/projects/))
 
-## Schematic
-
-![](images/sweep_schem.png)
-
-## See also
-
-* [attach()](/docs/api.md#attach)
-* [write()](/docs/api.md#write)
-* [map()](https://www.arduino.cc/en/Reference/Map)
-* [Servo library reference](/docs/readme.md)
-* [Knob](../Knob) - Control the position of a servo with a potentiometer
