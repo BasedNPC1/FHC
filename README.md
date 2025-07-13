@@ -20,6 +20,8 @@ Sweeps that RC [servo motor](http://en.wikipedia.org/wiki/Servo_motor#RC_servos)
 
 * Hook-up wires
 
+* Parker 2-Way Stainless Steel Valve 1/4 Inch
+
 ## Circuit
 
 Servo motors got three wires: power, ground, and signal. Power wire usually red – hook it to the 5V pin on your Arduino board. Ground wire black or brown, slam it into a ground pin. Signal pin yellow, orange, or white – connect to pin 9, no cap.
