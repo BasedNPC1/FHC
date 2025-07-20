@@ -1,0 +1,131 @@
+import os
+import re
+import time
+import serial
+import sys
+from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+
+# EDIT WEBSITE VALUE 0-->100
+website_value = 100
+
+# suppress TensorFlow C++ logs if loaded
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# suppress ChromeDriver logs
+os.environ['GLOG_minloglevel'] = '2'
+
+URL = "https://farthole.butthole.exchange/"
+now = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+print("Starting Script: ", now)
+def connect_to_arduino():
+    """
+    Connect to the Arduino on a fixed serial port (default /dev/ttyACM0),
+    or override with ARDUINO_PORT env var. Prints clear instructions on permission errors.
+    """
+    SERIAL_PORT = os.getenv('ARDUINO_PORT', '/dev/ttyACM0')
+    BAUD_RATE   = 9600
+
+    try:
+        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        print(f"Connected to Arduino on {SERIAL_PORT}")
+        # give the board a moment to reset
+        time.sleep(2)
+        return ser
+
+    except serial.SerialException as e:
+        err = str(e).lower()
+        if 'permission' in err or 'access denied' in err:
+            print(f"Permission denied opening {SERIAL_PORT}.")
+            print("On Linux: add your user to the dialout group and reboot:")
+            print("  sudo usermod -a -G dialout $USER && reboot")
+        else:
+            print(f"Error connecting to Arduino on {SERIAL_PORT}: {e}")
+        sys.exit(1)
+
+def read_arduino_output(ser):
+    """Drain and print any incoming data from the Arduino safely."""
+    try:
+        while ser.in_waiting:
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            if line:
+                print(f"Arduino: {line}")
+    except OSError:
+        # skip if port not ready or was closed
+        pass
+
+def scrape_pressure_data(driver):
+    """
+    Loads the page, checks if 'Pressure Till Next Fart' is 100%,
+    returns (value_str, 1) on match, else ('0', 0).
+    """
+    try:
+        driver.get(URL)
+        div = WebDriverWait(driver, 1).until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR,
+                 "div.text-white.text-\\[16px\\].font-semibold.archivo-black")
+            )
+        )
+
+    # Test 100 percent button
+      # look for the button by its text
+        buttons = driver.find_elements(
+            By.XPATH,
+            "//button[normalize-space(text())='Test 100% Progress']"
+        )
+
+        if buttons:
+            print("Found the Test 100% Progress button — clicking it!")
+            buttons[0].click()
+       
+
+        text = div.text.strip()
+        #print(text)
+        m = re.search(r"(\d+)%$", text)
+        if m and int(m.group(1)) == website_value:
+            full_line = f"Pressure Till Next Fart: {m.group(1)}"
+            print(full_line[25:28])  # prints "100"
+            return full_line[25:28], 1
+    except Exception as e:
+        # brief error message on transient failures
+        print(f"Error checking pressure:")
+    return "0", 0
+
+if __name__ == "__main__":
+    # 1) Start one headless Chrome driver
+    opts = Options()
+    opts.add_argument("--headless")
+    opts.add_argument("--disable-gpu")
+    opts.add_argument("--log-level=3")                   # fatal only
+    opts.add_experimental_option("excludeSwitches",
+                                ["enable-logging"])
+    service = Service(log_path=os.devnull)
+    driver = webdriver.Chrome(service=service, options=opts)
+    
+    try:
+        # 2) Poll loop (~every 2 seconds)
+        while True:
+            value, matched = scrape_pressure_data(driver)
+            now = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+            # print(f"{now} Percentage Value: {matched}")
+            if matched == 1:
+
+                # connect & send only on a real 100% match
+                ser = connect_to_arduino()
+                print(f"Commencing Fart at {now}.")
+                ser.write(b"d\n")
+                ser.flush()
+                read_arduino_output(ser)
+                print("Sent command: 'd'")
+                ser.close()
+                time.sleep(9)
+            else:
+                time.sleep(.1)
+    finally:
+        driver.quit()
